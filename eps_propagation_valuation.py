@@ -1,7 +1,7 @@
 import numpy as np
 
 
-class ActionPriceCalculator:
+class IntrinsicValueWithEPS:
     """
     Given a series of listed stocks, this class calculates a safe action price for each. With this price it is expected
     to obtain a desired return in a specified time span. It proceeds by estimating the growth rate of the earnings per
@@ -21,9 +21,11 @@ class ActionPriceCalculator:
         """
         try:
             print('ActionPriceCalculator: Initiating object.')
-            if not all([col in data.columns for col in ['EPS_TTM', 'Past_Equities', 'Years',
-                                                        'Growth_Estimate', 'PE_Ratio_High',
-                                                        'PE_Ratio_Low', 'Current_Price']]) or len(data) == 0:
+            required_cols = ['EPS_TTM', 'Past_Equities', 'Equity_Years', 'Growth_Estimate', 'PE_Ratio_High',
+                             'PE_Ratio_Low', 'Current_Price']
+            self.data = None
+            if not all([col in data.columns for col in required_cols]) or len(data) == 0 \
+                    or len(data.dropna(subset=required_cols)) == 0:
                 raise TypeError('Invalid or empty input dataframe.')
             self.data = data
             self.span_years = span_years
@@ -38,10 +40,11 @@ class ActionPriceCalculator:
         Main method of the class. Executes all the mentioned steps in order.
         :return: self.data, pandas DataFrame with results.
         """
-        self.calculate_eps_growth()
-        self.calculate_future_eps()
-        self.calculate_future_price()
-        self.calculate_action_price()
+        if self.data is not None:
+            self.calculate_eps_growth()
+            self.calculate_future_eps()
+            self.calculate_future_price()
+            self.calculate_action_price()
         return self.data
 
     def calculate_eps_growth(self):
@@ -53,7 +56,7 @@ class ActionPriceCalculator:
         try:
             print('ActionPriceCalculator: Calculating EPS Growth Rate.')
             # Estimate EPS Growth as Equity Growth
-            self.data['EPS_Growth_by_Equity'] = self.data[['Past_Equities', 'Years']].apply(
+            self.data['EPS_Growth_by_Equity'] = self.data[['Past_Equities', 'Equity_Years']].apply(
                 lambda row: self.calculate_yearly_growth(row[0], row[1]), axis=1)
 
             # Estimate EPS Growth from Growth Estimates
@@ -65,7 +68,7 @@ class ActionPriceCalculator:
 
             # If EPS_Growth_by_Equity is negative but EPS_Growth_by_Equity is not, take the latter
             self.data['EPS_Growth'] = self.data[['EPS_Growth', 'EPS_Growth_by_Estimate']].apply(
-                lambda row: row[1] if row[0] < 0 and row[1] > 0 else row[0], axis=1)
+                lambda row: row[1] if (row[0] < 0 and row[1] > 0) else row[0], axis=1)
 
         except Exception as e:
             print(f'Error calculating EPS Growth Rate with ActionPriceCalculator. Stack trace\n: {e}')
