@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timedelta
 import yahoo_fin.stock_info as si
 import matplotlib.pyplot as plt
@@ -10,6 +11,9 @@ class ResultPlotter:
         self.tickers = tickers
         self.ref_date = datetime.today().date().strftime('%d-%m-%Y')
         self.price_data = {}
+
+        for t in tickers:
+            os.makedirs(f'Results/{t}', exist_ok=True)
 
     def run(self):
         self.load_price_data()
@@ -26,7 +30,7 @@ class ResultPlotter:
 
     def plot_results_by_company(self):
         for t in self.tickers:
-            pdf = PdfPages(f'Results/Stock Valuation of {t} - {self.ref_date}.pdf')
+            pdf = PdfPages(f'Results/{t}/Stock Valuation of {t} - {self.ref_date}.pdf')
             for i in range(len(self.data)):
                 analysis = self.data[i]
                 columns_to_display = analysis['Table_Cols']

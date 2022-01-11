@@ -1,20 +1,15 @@
+from config import *
 from data_loader import DataLoader
 from eps_propagation_valuation import IntrinsicValueWithEPS
 from discounted_cash_flow_valuation import DCFValuation
 from result_plotter import ResultPlotter
 
 
-TICKERS = ['V', 'MSFT', 'BABA', 'AMZN', 'BKNG']
-SPAN_YEARS = 10
-DESIRED_RETURNS = 0.15
-SAFETY_MARGIN = 0.4
-SELLING_MULTIPLE = 10
-
 if __name__ == '__main__':
     print('STOCK VALUATION ACCORDING TO NEW MONEY ----> START')
 
     # Load data from Yahoo Finance
-    loader = DataLoader(TICKERS)
+    loader = DataLoader(TICKERS, FINANCIAL_MODELING_PREP_API_KEY)
     data = loader.run()
 
     # Calculate Intrinsic Value Propagating EPS

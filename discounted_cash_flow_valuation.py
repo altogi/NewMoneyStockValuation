@@ -18,7 +18,7 @@ class DCFValuation:
             if not all([col in data.columns for col in required_cols]) or len(data) == 0 \
                     or len(data.dropna(subset=required_cols)) == 0:
                 raise TypeError('Invalid or empty input dataframe.')
-            self.data = data
+            self.data = data.dropna(subset=required_cols)
             self.span_years = span_years
             self.desired_returns = desired_returns
             self.safety_margin = safety_margin
@@ -55,7 +55,7 @@ class DCFValuation:
             print(f'Error calculating Cashflow Growth Rate with DCFValuation. Stack trace\n: {e}')
 
     @staticmethod
-    def calculate_yearly_growth(values, years, only_furthest=False, method='min'):
+    def calculate_yearly_growth(values, years, only_furthest=False, method='mean'):
         """
         Auxiliar method that calculates the minimum yearly growth rate of a sequential series of values,
         split along a sequential series of years. If only_furthest is False, all yearly growth rates are taken by
@@ -66,13 +66,13 @@ class DCFValuation:
         :param method: str, Determines mode of extracting growth rate, if only_furthest=False. Can be min, max, or mean.
         :return: growth: float from 0 to 1.0, contains minimum yearly growth rate of the list.
         """
-        values = values[0]
-        years = years[0]
+        values = [v for v in values[0] if v > 0]
+        years = [y for i, y in enumerate(years[0]) if values[i] > 0]
         if only_furthest:
-            growth = np.exp(np.log(values[0] / values[-1]) / (years[0] - years[-1])) - 1
+            growth = (values[0] / values[-1]) ** (1 / (years[0] - years[-1])) - 1
         else:
-            growth_rates = [np.exp(np.log(values[0] / eq) / (years[0] - yr)) - 1 for eq, yr in
-                            zip(values[1:], years[1:]) if eq * values[0] > 0]
+            growth_rates = [(values[0] / eq) ** (1 / (years[0] - yr)) - 1 for eq, yr in
+                            zip(values[1:], years[1:])]
 
             if method == 'mean':
                 growth = np.mean(growth_rates)
@@ -103,8 +103,8 @@ class DCFValuation:
                 discount_rate = (1 - self.desired_returns) ** (yr + 1)
                 self.data[f'Discounted_Cash_Flow_Year_{yr + 1}'] = self.data[f'Cash_Flow_Year_{yr + 1}'] * discount_rate
 
-            self.data['Discounted_Cash_Flow_Sale'] = self.data['Cash_Flow_Sale'] * (1 - self.desired_returns) ** (
-                self.span_years)
+            self.data['Discounted_Cash_Flow_Sale'] = self.data['Cash_Flow_Sale'] * (1 + self.desired_returns) ** (
+                -self.span_years)
         except Exception as e:
             print(f'Error discounting all future cash flows with DCFValuation. Stack trace\n: {e}')
 

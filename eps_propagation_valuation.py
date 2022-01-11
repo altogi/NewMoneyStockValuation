@@ -27,7 +27,7 @@ class IntrinsicValueWithEPS:
             if not all([col in data.columns for col in required_cols]) or len(data) == 0 \
                     or len(data.dropna(subset=required_cols)) == 0:
                 raise TypeError('Invalid or empty input dataframe.')
-            self.data = data
+            self.data = data.dropna(subset=required_cols)
             self.span_years = span_years
             self.desired_returns = desired_returns
             self.safety_margin = safety_margin
@@ -74,7 +74,7 @@ class IntrinsicValueWithEPS:
             print(f'Error calculating EPS Growth Rate with ActionPriceCalculator. Stack trace\n: {e}')
 
     @staticmethod
-    def calculate_yearly_growth(values, years, only_furthest=True):
+    def calculate_yearly_growth(values, years, only_furthest=False, method='mean'):
         """
         Auxiliar method that calculates the minimum yearly growth rate of a sequential series of values,
         split along a sequential series of years. If only_furthest is False, all yearly growth rates are taken by
@@ -82,16 +82,29 @@ class IntrinsicValueWithEPS:
         :param values: 2D list, contains values from which to obtain minimum yearly growth.
         :param years: 2D list, contains year of each value
         :param only_furthest: bool, Determines whether to calculate only one rate (True) or all possible (False)
+        :param method: str, Determines mode of extracting growth rate, if only_furthest=False. Can be min, max, or mean.
         :return: growth: float from 0 to 1.0, contains minimum yearly growth rate of the list.
         """
         values = values[0]
         years = years[0]
         if only_furthest:
-            growth = np.exp(np.log(values[0] / values[-1]) / (years[0] - years[-1])) - 1
+            growth = (values[0] / values[-1]) ** (1 / (years[0] - years[-1])) - 1
         else:
-            growth_rates = [np.exp(np.log(values[0] / eq) / (years[0] - yr)) - 1 for eq, yr in
+            growth_rates = [(values[0] / eq) ** (1 / (years[0] - yr)) - 1 for eq, yr in
                                zip(values[1:], years[1:])]
-            growth = min(growth_rates)
+            if method == 'mean':
+                growth = np.mean(growth_rates)
+            elif method == 'max':
+                growth = max(growth_rates)
+            else:
+                growth = min(growth_rates)
+
+        # if only_furthest:
+        #     growth = np.exp(np.log(values[0] / values[-1]) / (years[0] - years[-1])) - 1
+        # else:
+        #     growth_rates = [np.exp(np.log(values[0] / eq) / (years[0] - yr)) - 1 for eq, yr in
+        #                        zip(values[1:], years[1:])]
+        #     growth = min(growth_rates)
         return growth
 
     def calculate_future_eps(self):
