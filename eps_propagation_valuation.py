@@ -85,8 +85,8 @@ class IntrinsicValueWithEPS:
         :param method: str, Determines mode of extracting growth rate, if only_furthest=False. Can be min, max, or mean.
         :return: growth: float from 0 to 1.0, contains minimum yearly growth rate of the list.
         """
-        values = values[0]
-        years = years[0]
+        values = values[0][0]
+        years = years[0][0]
         if only_furthest:
             growth = (values[0] / values[-1]) ** (1 / (years[0] - years[-1])) - 1
         else:

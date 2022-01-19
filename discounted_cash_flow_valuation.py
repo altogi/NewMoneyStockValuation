@@ -46,7 +46,7 @@ class DCFValuation:
             self.data['Cash_Flow_Growth'] = self.data[['Free_Cash_Flow', 'Cash_Flow_Years']].apply(
                 lambda row: self.calculate_yearly_growth(row[0], row[1], method='mean'), axis=1)
 
-            self.data['Starting_Cash_Flow'] = self.data[['Free_Cash_Flow']].apply(lambda x: x[0][0][0]).values[0]
+            self.data['Starting_Cash_Flow'] = self.data[['Free_Cash_Flow']].apply(lambda x: x[0][0][0][0], axis=1)
             for yr in range(self.span_years):
                 self.data[f'Cash_Flow_Year_{yr + 1}'] = self.data['Starting_Cash_Flow'] * (
                     (self.data['Cash_Flow_Growth'] + 1) ** (yr + 1))
@@ -66,8 +66,8 @@ class DCFValuation:
         :param method: str, Determines mode of extracting growth rate, if only_furthest=False. Can be min, max, or mean.
         :return: growth: float from 0 to 1.0, contains minimum yearly growth rate of the list.
         """
-        values = [v for v in values[0] if v > 0]
-        years = [y for i, y in enumerate(years[0]) if values[i] > 0]
+        values = [v for v in values[0][0] if v > 0]
+        years = [y for i, y in enumerate(years[0][0]) if values[i] > 0]
         if only_furthest:
             growth = (values[0] / values[-1]) ** (1 / (years[0] - years[-1])) - 1
         else:
@@ -115,6 +115,8 @@ class DCFValuation:
         """
         try:
             print('DCFValuation: Adding all discounted future cash flows, and adding current assets.')
+            self.data['Current_Cash_and_Investments'] = self.data['Current_Cash_and_Investments'].apply(
+                lambda x: x[0][0][-1])
             columns_to_add = ['Discounted_Cash_Flow_Sale', 'Current_Cash_and_Investments'] + \
                              [f'Discounted_Cash_Flow_Year_{yr + 1}' for yr in range(self.span_years)]
             self.data['Intrinsic_Value'] = self.data[columns_to_add].sum(axis=1)
