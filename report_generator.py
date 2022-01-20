@@ -2,6 +2,7 @@ import os
 import numpy as np
 import pandas as pd
 import config as conf
+import Common.questions as qs
 import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 import yahoo_fin.stock_info as si
@@ -9,6 +10,7 @@ from data_loader import DataLoader
 from eps_propagation_valuation import IntrinsicValueWithEPS
 from discounted_cash_flow_valuation import DCFValuation
 from fpdf import FPDF
+from PyPDF2 import PdfFileMerger
 
 
 class ReportGenerator:
@@ -64,10 +66,12 @@ class ReportGenerator:
         self.generate_eps_propagation_page()
 
         self.generate_discounted_cashflow_page()
-        # Save reports
-        for i, t in enumerate(self.tickers):
-            pdf = self.reports[i]
-            pdf.output(f'Results/{t}/Stock Valuation of {t} - {self.ref_date}.pdf', 'F')
+
+        self.generate_growth_phase_page()
+
+        self.generate_2_minute_drill_page()
+
+        self.save_and_appendix()
 
     def load_price_data(self):
         self.sp500_pe = pd.read_csv('Common/sp500_peratio.csv', parse_dates=['Date'], sep='\t')
@@ -330,7 +334,7 @@ class ReportGenerator:
             self.output_df_to_pdf(pdf, data)
 
             # Question box
-            self.question_box(pdf, 9, 'Is the debt due on demand? What type of debt is it?')
+            self.question_box(pdf, 8, 'Is the debt due on demand? What type of debt is it?')
 
     def generate_cash_flows_page(self):
         for i, t in enumerate(self.tickers):
@@ -421,9 +425,9 @@ class ReportGenerator:
             fig, ax1 = plt.subplots(1, 1, figsize=(15, 10))
             fig.suptitle(f'Inventory Analysis - {t}', fontsize=24)
 
-            ax1.set_xlabel('Years', fontsize=20)
+            ax1.set_xlabel('Date', fontsize=20)
             ax1.set_ylabel('Inventory', fontsize=20)
-            x = self.data.loc[t, 'Inventory_Years'][0][0]
+            x = self.data.loc[t, 'Inventory_Dates'][0][0]
             y = self.data.loc[t, 'Inventory'][0][0]
             ax1.tick_params(axis='x', labelsize=18)
             ax1.tick_params(axis='y', labelsize=18)
@@ -610,6 +614,51 @@ class ReportGenerator:
             # Print data on page
             self.output_df_to_pdf(pdf, data)
 
+    def generate_growth_phase_page(self):
+        for i, t in enumerate(self.tickers):
+            # Create a new report page
+            pdf = self.reports[i]
+            pdf.add_page()
+            pdf.set_font('Courier', style='B', size=50)
+            pdf.cell(18, 2, ln=2, align='C', txt=f'XIV. Growth Phase Analysis - {t}')
+
+            # Question Box 1
+            self.question_box(pdf, 17, qs.GROWTH_PHASE)
+
+    def generate_2_minute_drill_page(self):
+        for i, t in enumerate(self.tickers):
+            # Create a new report page
+            pdf = self.reports[i]
+            pdf.add_page()
+            pdf.set_font('Courier', style='B', size=50)
+            pdf.cell(18, 2, ln=2, align='C', txt=f'XV. The Two Minute Drill - {t}')
+
+            # Question Box 1
+            self.question_box(pdf, 9, qs.TWD_GENERIC_1)
+
+            # Question Box 2
+            self.question_box(pdf, 9, qs.TWD_GENERIC_2)
+
+            for category in qs.TWD_PER_CATEGORY.keys():
+                pdf.add_page()
+                pdf.set_font('Courier', style='B', size=40)
+                pdf.cell(18, 2, ln=2, align='C', txt=f'XV. The Two Minute Drill ({category})- {t}')
+
+                # Question Box 1
+                self.question_box(pdf, 20, qs.TWD_PER_CATEGORY[category])
+
+    def save_and_appendix(self):
+        # Save reports
+        for i, t in enumerate(self.tickers):
+            filename = f'Results/{t}/Images/tmp.pdf'
+            pdf = self.reports[i]
+            pdf.output(filename, 'F')
+
+            merger = PdfFileMerger()
+            for file in [filename, 'Common/appendix.pdf']:
+                merger.append(file)
+            merger.write(f'Results/{t}/Stock Valuation of {t} - {self.ref_date}.pdf')
+            merger.close()
 
     @staticmethod
     def calculate_yearly_growth(values, years, only_furthest=False, method='mean'):
@@ -666,6 +715,8 @@ class ReportGenerator:
                         value = f'{value:.2f}'
                     elif 'ratio' in col.lower():
                         value = f'{value:.3f}'
+                    elif value > 1e6:
+                        value = f'{value:.4e}'
                     else:
                         value = f'{value:.4f}'
                 pdf.cell(table_cell_width, table_cell_height, value, align='C', border=1)

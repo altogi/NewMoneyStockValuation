@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import yahoo_fin.stock_info as si
 from datetime import datetime, timedelta
 import time
@@ -25,14 +26,14 @@ class DataLoader:
 
         self.array_cols = ['Past_Equities', 'Equity_Years', 'PE_Ratios', 'PE_Ratio_Dates', 'Free_Cash_Flow',
                            'Cash_Flow_Years', 'Long_Term_Debt', 'LT_Debt_Years', 'Capital_Expenditure', 'Capex_Years',
-                           'Inventory_Years', 'Inventory', 'Earnings_Years', 'Earnings', 'Outstanding_Shares',
+                           'Inventory_Dates', 'Inventory', 'Earnings_Years', 'Earnings', 'Outstanding_Shares',
                            'Outs_Shares_Years', 'Current_Cash_and_Investments', 'Dividend_Yields', 'Ratio_Years',
                            'Gross_Margins', 'Operating_Margins', 'Pretax_Margins', 'Net_Margins']
         self.required_cols = ['EPS_TTM', 'Past_Equities', 'Equity_Years', 'Growth_Estimate', 'PE_Ratios',
                               'PE_Ratio_Dates', 'PE_Ratio_High', 'PE_Ratio_Low', 'Current_Price', 'Free_Cash_Flow',
                               'Cash_Flow_Years', 'Current_Cash_and_Investments', 'Market_Cap', 'Shares_Issued',
                               'Dividend_Yields', 'Long_Term_Debt', 'LT_Debt_Years', 'Equity', 'Assets',
-                              'Capital_Expenditure', 'Capex_Years', 'Inventory_Years', 'Inventory', 'Earnings',
+                              'Capital_Expenditure', 'Capex_Years', 'Inventory_Dates', 'Inventory', 'Earnings',
                               'Earnings_Years', 'Outstanding_Shares', 'Outs_Shares_Years', 'Ratio_Years',
                               'Gross_Margins', 'Operating_Margins', 'Pretax_Margins', 'Net_Margins']
         self.data = pd.DataFrame(index=self.tickers, columns=self.required_cols)
@@ -65,7 +66,7 @@ class DataLoader:
         # 'Capital_Expenditure': Values of previous capital expenditure
         # 'Capex_Years': Years corresponding to the values of capital expenditure
         # 'Inventory': Evolution of the company's inventory
-        # 'Inventory_Years': Years corresponding to the above inventory values
+        # 'Inventory_Dates': Dates corresponding to the above inventory values
         # 'Outstanding_Shares': Evolution of number of outstanding shares
         # 'Outs_Shares_Years': Years corresponding to the above outstanding share values
         # 'Gross_Margins', 'Operating_Margins', 'Pretax_Margins', 'Net_Margins': Evolution of profit margins
@@ -87,6 +88,7 @@ class DataLoader:
             self.get_income_statements()
             self.get_share_evolution()
             self.get_other_ratios()
+            # self.get_quarterly_inventory()
             self.update_archive()
         else:
             self.data = self.data_tmp.copy()
@@ -103,9 +105,18 @@ class DataLoader:
             self.data_tmp = pd.read_csv('Common/data_archive.csv', index_col=['index'])
             for col in self.array_cols:
                 if col in self.data_tmp.columns:
-                    self.data_tmp[col] = self.data_tmp[col].apply(lambda x: eval(x))
+                    self.data_tmp[col] = self.data_tmp[col].apply(lambda x: self.robust_eval(x))
         except FileNotFoundError:
             print('DataLoader: File not found. Using API.')
+
+    @staticmethod
+    def robust_eval(x):
+        if isinstance(x, str):
+            return eval(x)
+        elif np.isnan(x):
+            return None
+        else:
+            return x
 
     def check_data_archive(self):
         """
@@ -189,7 +200,7 @@ class DataLoader:
                     self.data.loc[t, 'Long_Term_Debt'] = [[debts]]
                     self.data.loc[t, 'LT_Debt_Years'] = [[years]]
                     self.data.loc[t, 'Inventory'] = [[inventories]]
-                    self.data.loc[t, 'Inventory_Years'] = [[years]]
+                    self.data.loc[t, 'Inventory_Dates'] = [[years]]
 
                     self.data.loc[t, 'Equity'] = equities[0]
                     self.data.loc[t, 'Assets'] = balance_sheet['totalAssets'][0]
@@ -407,6 +418,30 @@ class DataLoader:
                     print(f'Invalid FMP API response for {t}')
         except Exception as e:
             print(f'Error extracting company ratio data with DataLoader. Stack trace\n: {e}')
+
+    def get_quarterly_inventory(self):
+        try:
+            print('DataLoader: Extracting quarterly inventory data from balance sheet.')
+            for t in self.tickers:
+                fmp_api_url = f'https://financialmodelingprep.com/api/v3/balance-sheet-statement/{t}' + \
+                              f'?period=quarter&limit={self.limit}&apikey={self.fmp_api_key}'
+                response = requests.get(fmp_api_url)
+                if response.status_code == 200:
+                    balance_sheet = pd.DataFrame(response.json())
+
+                    dates = pd.to_datetime(balance_sheet['date']).to_list()
+                    inventories = balance_sheet['inventory'].to_list()
+                    if dates[-1] < dates[0]:
+                        dates.reverse()
+                        inventories.reverse()
+                    self.data.loc[t, 'Inventory'] = [[inventories]]
+                    self.data.loc[t, 'Inventory_Dates'] = [[dates]]
+                    time.sleep(10)
+                else:
+                    print(f'Invalid FMP API response for {t}')
+
+        except Exception as e:
+            print(f'Error extracting quarterly inventory data from balance sheet with DataLoader. Stack trace\n: {e}')
 
     def update_archive(self):
         """
